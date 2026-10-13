@@ -731,24 +731,48 @@ export function NewsExplorer({ auth }: { auth: AuthState }) {
       aria-label={exploreMode === "mix" ? "選ばれた国々のニュースを移動" : "同じ国のニュースを移動"}
     >
       <span>{feedLocationLabel}の記事</span>
-      <div>
-        <button
-          type="button"
-          onClick={loadPreviousPage}
-          disabled={!hasPreviousPage || pageLoading}
-          aria-label={exploreMode === "mix" ? "選ばれた国々の前の10件へ" : "同じ国の前の10件へ"}
-        >
-          ←
-        </button>
-        <b>{pageLoading ? "読み込み中" : `PAGE ${String(pageIndex + 1).padStart(2, "0")}`}</b>
-        <button
-          type="button"
-          onClick={() => void loadNextPage()}
-          disabled={!hasNextPage || pageLoading}
-          aria-label={exploreMode === "mix" ? "選ばれた国々の次の10件へ" : "同じ国の次の10件へ"}
-        >
-          →
-        </button>
+      <div className="page-navigation-actions">
+        {position === "top" && (
+          <div className="page-translation" role="group" aria-label="記事の翻訳設定">
+            <span>記事を翻訳</span>
+            <button
+              type="button"
+              className={`switch ${translationEnabled ? "is-on" : ""}`}
+              role="switch"
+              aria-checked={translationEnabled}
+              onClick={() => setTranslationEnabled((enabled) => !enabled)}
+            >
+              <i /><b>{translationEnabled ? "ON" : "OFF"}</b>
+            </button>
+            <select
+              aria-label="翻訳先の言語"
+              value={targetLanguage}
+              disabled={!translationEnabled}
+              onChange={(event) => setTargetLanguage(event.target.value)}
+            >
+              {translationLanguages.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+            </select>
+          </div>
+        )}
+        <div className="page-controls">
+          <button
+            type="button"
+            onClick={loadPreviousPage}
+            disabled={!hasPreviousPage || pageLoading}
+            aria-label={exploreMode === "mix" ? "選ばれた国々の前の10件へ" : "同じ国の前の10件へ"}
+          >
+            ←
+          </button>
+          <b>{pageLoading ? "読み込み中" : `PAGE ${String(pageIndex + 1).padStart(2, "0")}`}</b>
+          <button
+            type="button"
+            onClick={() => void loadNextPage()}
+            disabled={!hasNextPage || pageLoading}
+            aria-label={exploreMode === "mix" ? "選ばれた国々の次の10件へ" : "同じ国の次の10件へ"}
+          >
+            →
+          </button>
+        </div>
       </div>
     </div>
   );
@@ -832,28 +856,6 @@ export function NewsExplorer({ auth }: { auth: AuthState }) {
             {languages.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
           </select>
         </label>
-        <div className="translation-filter">
-          <span>記事を翻訳</span>
-          <div>
-            <button
-              type="button"
-              className={`switch ${translationEnabled ? "is-on" : ""}`}
-              role="switch"
-              aria-checked={translationEnabled}
-              onClick={() => setTranslationEnabled((enabled) => !enabled)}
-            >
-              <i /><b>{translationEnabled ? "ON" : "OFF"}</b>
-            </button>
-            <select
-              aria-label="翻訳先の言語"
-              value={targetLanguage}
-              disabled={!translationEnabled}
-              onChange={(event) => setTargetLanguage(event.target.value)}
-            >
-              {translationLanguages.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
-            </select>
-          </div>
-        </div>
       </section>
 
       <section className="hero" id="top">
