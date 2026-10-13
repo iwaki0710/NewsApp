@@ -470,9 +470,20 @@ export function NewsExplorer({ auth }: { auth: AuthState }) {
   const translationCacheRef = useRef<Record<string, Translation>>({});
   const [translationLoading, setTranslationLoading] = useState(false);
   const [translationError, setTranslationError] = useState<string | null>(null);
+  const newsListTopRef = useRef<HTMLElement | null>(null);
   const currentPage = newsPages[pageIndex];
   const articles = currentPage?.articles || emptyArticles;
   const availableCountries = countriesByRegion[region] || countriesByRegion.world;
+
+  const scrollToNewsListTop = useCallback(() => {
+    window.requestAnimationFrame(() => {
+      const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      newsListTopRef.current?.scrollIntoView({
+        behavior: prefersReducedMotion ? "auto" : "smooth",
+        block: "start",
+      });
+    });
+  }, []);
 
   const fetchNews = useCallback(async () => {
     setLoading(true);
@@ -520,7 +531,8 @@ export function NewsExplorer({ auth }: { auth: AuthState }) {
     setReaderArticleId(null);
     setPageError(null);
     setPageIndex((current) => current - 1);
-  }, [pageIndex, pageLoading]);
+    scrollToNewsListTop();
+  }, [pageIndex, pageLoading, scrollToNewsListTop]);
 
   const loadNextPage = useCallback(async () => {
     if (pageLoading) return;
@@ -528,6 +540,7 @@ export function NewsExplorer({ auth }: { auth: AuthState }) {
       setReaderArticleId(null);
       setPageError(null);
       setPageIndex((current) => current + 1);
+      scrollToNewsListTop();
       return;
     }
     const nextPage = newsPages[pageIndex]?.nextPage;
@@ -564,12 +577,13 @@ export function NewsExplorer({ auth }: { auth: AuthState }) {
       ]);
       setReaderArticleId(null);
       setPageIndex((current) => current + 1);
+      scrollToNewsListTop();
     } catch (caught) {
       setPageError(asErrorState(caught, "次のニュースを取得できませんでした。"));
     } finally {
       setPageLoading(false);
     }
-  }, [category, exploreMode, language, newsPages, pageIndex, pageLoading, pickedCountries, pickedCountry, region]);
+  }, [category, exploreMode, language, newsPages, pageIndex, pageLoading, pickedCountries, pickedCountry, region, scrollToNewsListTop]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => void fetchNews(), 0);
@@ -911,7 +925,7 @@ export function NewsExplorer({ auth }: { auth: AuthState }) {
         </div>
       </section>
 
-      <section className="feed-section" aria-live="polite">
+      <section ref={newsListTopRef} className="feed-section" aria-live="polite">
         <div className="feed-heading">
           <div>
             <span className="section-number">01</span>
