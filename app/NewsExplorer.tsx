@@ -864,7 +864,7 @@ export function NewsExplorer({ auth }: { auth: AuthState }) {
           <h1>世界のニュースを、<br /><em>偶然</em>から。</h1>
           <p className="hero-lead">
             アルゴリズムの外へ出よう。ボタンを押すたび、<br className="desktop-only" />
-            世界のどこかで今起きている出来事へ。
+            世界のどこかで起きている出来事へ。
           </p>
           <div className="mode-picker" aria-label="ニュースの探索方法">
             <button
@@ -913,7 +913,7 @@ export function NewsExplorer({ auth }: { auth: AuthState }) {
           </button>
           <p className="quota-note">
             {exploreMode === "mix"
-              ? "1回のAPI取得で最大5か国・10件をミックス"
+              ? "1回で最大5か国・10件をミックス"
               : "1回のシャッフルで1か国から最大10件を取得"}
           </p>
         </div>
@@ -1070,7 +1070,7 @@ export function NewsExplorer({ auth }: { auth: AuthState }) {
             </div>
             <div className="reader-notice">
               <b>著作権に配慮した表示</b>
-              <p>この画面では記事全文を複製せず、APIから提供された短い概要だけを表示しています。</p>
+              <p>この画面では記事全文を複製せず、提供された短い概要だけを表示しています。</p>
             </div>
             <div className="reader-actions">
               <button onClick={() => void shareArticle(readerArticle)}>

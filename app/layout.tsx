@@ -16,7 +16,7 @@ export async function generateMetadata(): Promise<Metadata> {
   return {
     metadataBase: baseUrl,
     title: "TERRANDIP — 世界のニュースを、偶然から。",
-    description: "世界のどこかで今起きている出来事へ。ランダムにニュースと出会う、新しい入口。",
+    description: "世界のどこかで起きている出来事へ。ランダムにニュースと出会う、新しい入口。",
     icons: { icon: "/favicon.svg", shortcut: "/favicon.svg" },
     openGraph: {
       title: "TERRANDIP",
