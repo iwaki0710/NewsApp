@@ -396,8 +396,14 @@ function articleTimestamp(article: Article) {
   return Number.isNaN(timestamp) ? 0 : timestamp;
 }
 
-function articleCountryCode(article: Article, fallbackCountry: string | null) {
-  const rawCountry = article.country?.[0]?.toLowerCase() || fallbackCountry?.toLowerCase() || "world";
+function articleCountryCode(
+  article: Article,
+  fallbackCountry: string | null,
+  exploreMode: "single" | "mix",
+) {
+  const rawCountry = exploreMode === "single" && fallbackCountry
+    ? fallbackCountry.toLowerCase()
+    : article.country?.[0]?.toLowerCase() || fallbackCountry?.toLowerCase() || "world";
   return countryCodeAliases[rawCountry] || rawCountry;
 }
 
@@ -612,7 +618,7 @@ export function NewsExplorer({ auth }: { auth: AuthState }) {
     : countryNames[articleCountry] || articleCountry.toUpperCase();
   const feedLocationLabel = exploreMode === "mix"
     ? `${pickedCountries.length}か国ミックス`
-    : locationLabel;
+    : `${locationLabel}限定`;
   const coordinates = exploreMode === "mix"
     ? countryCoordinates.world
     : countryCoordinates[articleCountry] || countryCoordinates.world;
@@ -873,7 +879,7 @@ export function NewsExplorer({ auth }: { auth: AuthState }) {
               aria-pressed={exploreMode === "single"}
               onClick={() => setExploreMode("single")}
             >
-              <span>01</span> 1か国を深掘り
+              <span>01</span> 1カ国深掘り
             </button>
             <button
               type="button"
@@ -884,6 +890,12 @@ export function NewsExplorer({ auth }: { auth: AuthState }) {
               <span>02</span> 世界ミックス
             </button>
           </div>
+          <p className={`mode-help mode-help-${exploreMode}`}>
+            <b>{exploreMode === "single" ? "1カ国限定" : "複数国を横断"}</b>
+            {exploreMode === "single"
+              ? "選択した1カ国に一致する記事だけを表示します。"
+              : "選ばれた最大5カ国の記事を、1つの一覧に混ぜて表示します。"}
+          </p>
           {exploreMode === "single" && (
             <label className="country-picker">
               <span>国を選ぶ</span>
@@ -914,7 +926,7 @@ export function NewsExplorer({ auth }: { auth: AuthState }) {
           <p className="quota-note">
             {exploreMode === "mix"
               ? "1回で最大5か国・10件をミックス"
-              : "1回のシャッフルで1か国から最大10件を取得"}
+              : "選択した1カ国の記事だけを最大10件表示"}
           </p>
         </div>
 
@@ -993,7 +1005,7 @@ export function NewsExplorer({ auth }: { auth: AuthState }) {
             )}
             <div className="news-grid">
               {orderedArticles.map((article, articleIndex) => {
-                const countryCode = articleCountryCode(article, pickedCountry);
+                const countryCode = articleCountryCode(article, pickedCountry, exploreMode);
                 const cardLocationLabel = countryNames[countryCode] || countryCode.toUpperCase();
                 const translationKey = `${article.id}:${targetLanguage}`;
                 const translated = translationCache[translationKey];
