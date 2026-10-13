@@ -777,9 +777,9 @@ export function NewsExplorer({ auth }: { auth: AuthState }) {
   return (
     <main className="site-shell">
       <header className="topbar">
-        <a className="brand" href="#top" aria-label="WORLDHOP ホーム">
-          <span className="brand-mark">W</span>
-          <span>WORLDHOP</span>
+        <a className="brand" href="#top" aria-label="TERRANDIP ホーム">
+          <span className="brand-mark">T</span>
+          <span>TERRANDIP</span>
         </a>
         <div className="live-indicator"><i /> LIVE WORLD FEED</div>
         <div className="topbar-actions">
@@ -1055,7 +1055,7 @@ export function NewsExplorer({ auth }: { auth: AuthState }) {
             onMouseDown={(event) => event.stopPropagation()}
           >
             <button className="reader-close" onClick={() => setReaderArticleId(null)} aria-label="詳細を閉じる">×</button>
-            <div className="reader-kicker"><span>WORLDHOP READER</span><span>SHORT SUMMARY</span></div>
+            <div className="reader-kicker"><span>TERRANDIP READER</span><span>SHORT SUMMARY</span></div>
             <h3 id="reader-title">{readerTitle}</h3>
             <div className="reader-meta">
               <div><span>SOURCE</span><strong>{readerArticle.source}</strong></div>
@@ -1092,7 +1092,7 @@ export function NewsExplorer({ auth }: { auth: AuthState }) {
             onMouseDown={(event) => event.stopPropagation()}
           >
             <button className="account-close" onClick={() => setAccountOpen(false)} aria-label="アカウント画面を閉じる">×</button>
-            <span className="account-kicker">WORLDHOP ACCOUNT</span>
+            <span className="account-kicker">TERRANDIP ACCOUNT</span>
             {auth.user ? (
               <>
                 <div className="account-identity">
@@ -1109,7 +1109,7 @@ export function NewsExplorer({ auth }: { auth: AuthState }) {
                 </div>
                 <div className="account-safe-note">
                   <b>パスワードを保存しない設計</b>
-                  <p>ログイン確認はChatGPTが担当します。WORLDHOPにはパスワード、認証トークン、ログイン用Cookieを保存しません。</p>
+                  <p>ログイン確認はChatGPTが担当します。TERRANDIPにはパスワード、認証トークン、ログイン用Cookieを保存しません。</p>
                 </div>
                 <a className="account-signout" href={auth.signOutPath}>ログアウト <span>→</span></a>
               </>
@@ -1117,7 +1117,7 @@ export function NewsExplorer({ auth }: { auth: AuthState }) {
               <>
                 <h2 id="account-title">アカウント作成<br />またはログイン</h2>
                 <p className="account-lead">
-                  ChatGPTの安全なログイン画面を利用します。初回ログイン時にWORLDHOPアカウントが自動で作成されます。
+                  ChatGPTの安全なログイン画面を利用します。初回ログイン時にTERRANDIPアカウントが自動で作成されます。
                 </p>
                 <div className="account-benefits">
                   <div><span>01</span><b>新しいパスワードは不要</b></div>
@@ -1143,15 +1143,15 @@ export function NewsExplorer({ auth }: { auth: AuthState }) {
         <span className="section-number">02</span>
         <p>いつもの視点から、<br /><em>少しだけ遠くへ。</em></p>
         <div className="manifesto-note">
-          <b>WORLDHOP</b>
+          <b>TERRANDIP</b>
           <span>偏りのない世界はない。<br />だからこそ、偶然の入口を。</span>
         </div>
       </section>
 
       <footer>
-        <a className="brand footer-brand" href="#top"><span className="brand-mark">W</span><span>WORLDHOP</span></a>
+        <a className="brand footer-brand" href="#top"><span className="brand-mark">T</span><span>TERRANDIP</span></a>
         <p>NEWS: NEWSDATA.IO · TRANSLATION: DEEPL</p>
-        <p>© 2026 WORLDHOP</p>
+        <p>© 2026 TERRANDIP</p>
       </footer>
     </main>
   );

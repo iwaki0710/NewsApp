@@ -2,7 +2,7 @@ import { sql } from "drizzle-orm";
 import { index, sqliteTable, text } from "drizzle-orm/sqlite-core";
 
 // Authentication itself is owned by the Sites dispatcher. This table stores
-// only the WORLDHOP profile linked to that verified identity—never passwords,
+// only the TERRANDIP profile linked to that verified identity—never passwords,
 // OAuth tokens, cookies, or session secrets.
 export const users = sqliteTable(
   "users",

@@ -3,12 +3,12 @@ import type { ChatGPTUser } from "../app/chatgpt-auth";
 import { getDb } from ".";
 import { users } from "./schema";
 
-export type WorldhopAccount = {
+export type TerrandipAccount = {
   id: string;
   createdAt: string;
 };
 
-export async function ensureWorldhopAccount(user: ChatGPTUser): Promise<WorldhopAccount> {
+export async function ensureTerrandipAccount(user: ChatGPTUser): Promise<TerrandipAccount> {
   const email = user.email.trim().toLowerCase().slice(0, 320);
   const displayName = user.displayName.trim().slice(0, 200) || email;
   if (!email || !email.includes("@")) {

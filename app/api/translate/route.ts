@@ -106,7 +106,7 @@ export async function POST(request: NextRequest) {
   if (!pending.size) {
     return NextResponse.json(
       { translations: cacheKeys.map((key) => resolved.get(key) || ""), detectedLanguage: null, cached: true },
-      { headers: { "Cache-Control": "private, no-store, max-age=0", "X-WORLDHOP-Cache": "HIT", "X-Content-Type-Options": "nosniff" } },
+      { headers: { "Cache-Control": "private, no-store, max-age=0", "X-TERRANDIP-Cache": "HIT", "X-Content-Type-Options": "nosniff" } },
     );
   }
 
@@ -163,7 +163,7 @@ export async function POST(request: NextRequest) {
         detectedLanguage: data.translations?.[0]?.detected_source_language || null,
         cached: false,
       },
-      { headers: { "Cache-Control": "private, no-store, max-age=0", "X-WORLDHOP-Cache": "MISS", "X-Content-Type-Options": "nosniff" } },
+      { headers: { "Cache-Control": "private, no-store, max-age=0", "X-TERRANDIP-Cache": "MISS", "X-Content-Type-Options": "nosniff" } },
     );
   } catch (error) {
     if (error instanceof Error && error.name === "AbortError") {

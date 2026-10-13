@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { ensureWorldhopAccount } from "../db/accounts";
+import { ensureTerrandipAccount } from "../db/accounts";
 import {
   chatGPTSignInPath,
   chatGPTSignOutPath,
@@ -10,7 +10,7 @@ import { NewsExplorer } from "./NewsExplorer";
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
-  title: "WORLDHOP — 世界のニュースを、偶然から。",
+  title: "TERRANDIP — 世界のニュースを、偶然から。",
   description:
     "世界中のニュースから、今まで知らなかった一本にランダムで出会えるニュースルーレット。",
 };
@@ -22,11 +22,11 @@ export default async function Home() {
 
   if (user) {
     try {
-      const account = await ensureWorldhopAccount(user);
+      const account = await ensureTerrandipAccount(user);
       accountCreatedAt = account.createdAt;
     } catch (error) {
       accountStorageReady = false;
-      console.error("WORLDHOP account storage is unavailable", error);
+      console.error("TERRANDIP account storage is unavailable", error);
     }
   }
 

@@ -111,7 +111,7 @@ function successResponse(payload: NewsPayload, cacheStatus: "HIT" | "MISS") {
       headers: {
         "Cache-Control": "public, max-age=60, s-maxage=600, stale-while-revalidate=120",
         "CDN-Cache-Control": "public, s-maxage=600, stale-while-revalidate=120",
-        "X-WORLDHOP-Cache": cacheStatus,
+        "X-TERRANDIP-Cache": cacheStatus,
         "X-Content-Type-Options": "nosniff",
       },
     },
