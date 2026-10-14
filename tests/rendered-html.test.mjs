@@ -81,6 +81,9 @@ test("protects bookmarks with verified Supabase identity and per-user D1 queries
   assert.match(explorer, /auth\.user && \(/);
   assert.match(explorer, /\/api\/bookmarks/);
   assert.match(explorer, /bookmark-toast/);
+  assert.match(explorer, /保存済み記事を翻訳/);
+  assert.match(explorer, /bookmarkTranslationEnabled/);
+  assert.match(explorer, /bookmarkTargetLanguage/);
   assert.doesNotMatch(explorer, /localStorage|sessionStorage/);
 });
 

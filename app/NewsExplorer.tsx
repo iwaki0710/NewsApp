@@ -467,6 +467,12 @@ export function NewsExplorer() {
   const [bookmarkLoading, setBookmarkLoading] = useState(false);
   const [bookmarkError, setBookmarkError] = useState<string | null>(null);
   const [bookmarkMutatingIds, setBookmarkMutatingIds] = useState<string[]>([]);
+  const [bookmarkTranslationEnabled, setBookmarkTranslationEnabled] = useState(false);
+  const [bookmarkTargetLanguage, setBookmarkTargetLanguage] = useState("JA");
+  const [bookmarkTranslationCache, setBookmarkTranslationCache] = useState<Record<string, string>>({});
+  const bookmarkTranslationCacheRef = useRef<Record<string, string>>({});
+  const [bookmarkTranslationLoading, setBookmarkTranslationLoading] = useState(false);
+  const [bookmarkTranslationError, setBookmarkTranslationError] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [readerArticleId, setReaderArticleId] = useState<string | null>(null);
   const [translationEnabled, setTranslationEnabled] = useState(false);
@@ -705,6 +711,65 @@ export function NewsExplorer() {
     void loadBookmarks();
     return () => controller.abort();
   }, [auth.user]);
+
+  useEffect(() => {
+    if (!bookmarkOpen || !bookmarkTranslationEnabled || !bookmarks.length) {
+      return;
+    }
+
+    const pendingBookmarks = bookmarks.filter(
+      (bookmark) => !bookmarkTranslationCacheRef.current[`${bookmark.id}:${bookmarkTargetLanguage}`],
+    );
+    if (!pendingBookmarks.length) {
+      return;
+    }
+
+    const controller = new AbortController();
+    const translateBookmarks = async () => {
+      setBookmarkTranslationLoading(true);
+      setBookmarkTranslationError(null);
+      try {
+        const additions: Record<string, string> = {};
+        for (let index = 0; index < pendingBookmarks.length; index += 20) {
+          const batch = pendingBookmarks.slice(index, index + 20);
+          const response = await fetch("/api/translate", {
+            method: "POST",
+            headers: { "Content-Type": "application/json", Accept: "application/json" },
+            body: JSON.stringify({
+              texts: batch.map((bookmark) => bookmark.title),
+              targetLanguage: bookmarkTargetLanguage,
+            }),
+            signal: controller.signal,
+          });
+          const data = (await response.json()) as { translations?: string[]; error?: string };
+          if (!response.ok || data.translations?.length !== batch.length) {
+            throw new Error(data.error || "保存済みの記事を翻訳できませんでした。");
+          }
+          batch.forEach((bookmark, batchIndex) => {
+            additions[`${bookmark.id}:${bookmarkTargetLanguage}`] =
+              data.translations?.[batchIndex] || bookmark.title;
+          });
+        }
+        if (controller.signal.aborted) return;
+        bookmarkTranslationCacheRef.current = {
+          ...bookmarkTranslationCacheRef.current,
+          ...additions,
+        };
+        setBookmarkTranslationCache(bookmarkTranslationCacheRef.current);
+      } catch (caught) {
+        if (!controller.signal.aborted) {
+          setBookmarkTranslationError(
+            caught instanceof Error ? caught.message : "保存済みの記事を翻訳できませんでした。",
+          );
+        }
+      } finally {
+        if (!controller.signal.aborted) setBookmarkTranslationLoading(false);
+      }
+    };
+
+    void translateBookmarks();
+    return () => controller.abort();
+  }, [bookmarkOpen, bookmarkTargetLanguage, bookmarkTranslationEnabled, bookmarks]);
 
   useEffect(() => {
     if (!translationEnabled || !orderedArticles.length) return;
@@ -1269,38 +1334,84 @@ export function NewsExplorer() {
               <b>{bookmarks.length} / 200</b>
             </div>
 
+            <div className="bookmarks-translation" role="group" aria-label="保存済み記事の翻訳設定">
+              <div>
+                <span>保存済み記事を翻訳</span>
+                <small>{bookmarkTranslationLoading ? "翻訳しています…" : "タイトルの表示言語を切り替えます"}</small>
+              </div>
+              <button
+                type="button"
+                className={`switch ${bookmarkTranslationEnabled ? "is-on" : ""}`}
+                role="switch"
+                aria-checked={bookmarkTranslationEnabled}
+                onClick={() => {
+                  const nextEnabled = !bookmarkTranslationEnabled;
+                  setBookmarkTranslationEnabled(nextEnabled);
+                  if (!nextEnabled) {
+                    setBookmarkTranslationLoading(false);
+                    setBookmarkTranslationError(null);
+                  }
+                }}
+              >
+                <i /><b>{bookmarkTranslationEnabled ? "ON" : "OFF"}</b>
+              </button>
+              <select
+                aria-label="保存済み記事の翻訳先言語"
+                value={bookmarkTargetLanguage}
+                disabled={!bookmarkTranslationEnabled || bookmarkTranslationLoading}
+                onChange={(event) => {
+                  setBookmarkTargetLanguage(event.target.value);
+                  setBookmarkTranslationError(null);
+                }}
+              >
+                {translationLanguages.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+              </select>
+            </div>
+
             {bookmarkError && <p className="bookmarks-error" role="alert">{bookmarkError}</p>}
+            {bookmarkTranslationEnabled && bookmarkTranslationError && (
+              <p className="bookmarks-error" role="alert">{bookmarkTranslationError}</p>
+            )}
             {bookmarkLoading ? (
               <div className="bookmarks-empty">保存済みの記事を読み込んでいます…</div>
             ) : bookmarks.length ? (
               <div className="bookmarks-list">
-                {bookmarks.map((bookmark, index) => (
-                  <article key={bookmark.id}>
-                    <span>{String(index + 1).padStart(2, "0")}</span>
-                    <div>
-                      <small>{bookmark.source} · {formatDate(bookmark.savedAt)}保存</small>
-                      <h3>{bookmark.title}</h3>
+                {bookmarks.map((bookmark, index) => {
+                  const translatedTitle = bookmarkTranslationCache[`${bookmark.id}:${bookmarkTargetLanguage}`];
+                  const isTranslating = bookmarkTranslationEnabled && bookmarkTranslationLoading && !translatedTitle;
+                  return (
+                    <article key={bookmark.id}>
+                      <span>{String(index + 1).padStart(2, "0")}</span>
                       <div>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setBookmarkOpen(false);
-                            setReaderArticleId(bookmark.id);
-                          }}
-                        >
-                          概要を読む →
-                        </button>
-                        <button
-                          type="button"
-                          disabled={bookmarkMutatingIds.includes(bookmark.id)}
-                          onClick={() => void toggleBookmark(bookmark)}
-                        >
-                          {bookmarkMutatingIds.includes(bookmark.id) ? "削除中…" : "削除"}
-                        </button>
+                        <small>
+                          {bookmark.source} · {formatDate(bookmark.savedAt)}保存
+                          {bookmarkTranslationEnabled && (translatedTitle ? " · DEEPL訳" : isTranslating ? " · 翻訳中" : "")}
+                        </small>
+                        <h3 className={isTranslating ? "is-translating" : ""}>
+                          {bookmarkTranslationEnabled && translatedTitle ? translatedTitle : bookmark.title}
+                        </h3>
+                        <div>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setBookmarkOpen(false);
+                              setReaderArticleId(bookmark.id);
+                            }}
+                          >
+                            概要を読む →
+                          </button>
+                          <button
+                            type="button"
+                            disabled={bookmarkMutatingIds.includes(bookmark.id)}
+                            onClick={() => void toggleBookmark(bookmark)}
+                          >
+                            {bookmarkMutatingIds.includes(bookmark.id) ? "削除中…" : "削除"}
+                          </button>
+                        </div>
                       </div>
-                    </div>
-                  </article>
-                ))}
+                    </article>
+                  );
+                })}
               </div>
             ) : (
               <div className="bookmarks-empty">
