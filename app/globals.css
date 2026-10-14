@@ -40,6 +40,11 @@ button:focus-visible, a:focus-visible, select:focus-visible { outline: 3px solid
 .live-indicator { display: flex; align-items: center; gap: 9px; font-size: 10px; font-weight: 700; }
 .live-indicator i { width: 7px; height: 7px; border-radius: 50%; background: #34a853; box-shadow: 0 0 0 4px rgba(52,168,83,.13); animation: pulse 2s infinite; }
 .topbar-actions { justify-self: end; display: flex; align-items: center; gap: 22px; }
+.bookmark-trigger { padding: 6px 9px; border: 1px solid var(--ink); display: flex; align-items: center; gap: 7px; background: transparent; color: var(--ink); cursor: pointer; }
+.bookmark-trigger:hover { background: var(--acid); box-shadow: 3px 3px 0 var(--ink); transform: translate(-1px, -1px); }
+.bookmark-trigger > span { color: var(--orange); font-size: 14px; line-height: 1; }
+.bookmark-trigger b { font-size: 9px; }
+.bookmark-trigger i { min-width: 20px; height: 20px; padding: 0 5px; display: grid; place-items: center; border-radius: 999px; background: var(--ink); color: var(--paper); font-family: var(--font-geist-mono); font-size: 7px; font-style: normal; }
 .account-trigger { max-width: 190px; padding: 5px 0; border: 0; background: transparent; color: var(--ink); display: flex; align-items: center; gap: 8px; font-size: 10px; font-weight: 750; cursor: pointer; }
 .account-trigger i { width: 27px; height: 27px; flex: 0 0 auto; display: grid; place-items: center; border: 1px solid var(--ink); border-radius: 50%; font-family: var(--font-geist-mono); font-size: 11px; font-style: normal; }
 .account-trigger.is-signed-in i { border-color: var(--ink); background: var(--acid); }
@@ -176,6 +181,9 @@ h1 em { font-family: Georgia, "Yu Mincho", serif; font-weight: 400; color: var(-
 .article-actions .read-here-button { flex: 1; padding: 16px 18px; border: 0; display: flex; justify-content: space-between; background: var(--paper); color: var(--ink); font-weight: 750; font-size: 12px; transition: background .2s; }
 .article-actions .read-here-button:hover { background: var(--acid); }
 .article-actions .share-button { border: 0; background: transparent; color: var(--paper); text-decoration: underline; text-underline-offset: 5px; font-size: 11px; }
+.article-actions .bookmark-button { padding: 9px 10px; border: 1px solid rgba(255,255,255,.35); background: transparent; color: var(--paper); display: inline-flex; align-items: center; gap: 6px; font-size: 10px; white-space: nowrap; }
+.article-actions .bookmark-button:hover:not(:disabled), .article-actions .bookmark-button.is-saved { border-color: var(--acid); color: var(--acid); }
+.article-actions .bookmark-button:disabled { cursor: wait; opacity: .55; }
 
 .reader-backdrop { position: fixed; z-index: 20; inset: 0; padding: 30px; display: grid; place-items: center; background: rgba(7,10,8,.78); backdrop-filter: blur(8px); }
 .reader-panel { width: min(820px, 100%); max-height: min(760px, calc(100vh - 60px)); overflow-y: auto; position: relative; padding: clamp(34px, 6vw, 72px); background: var(--paper); color: var(--ink); border: 1px solid var(--ink); box-shadow: 12px 12px 0 var(--acid); }
@@ -197,8 +205,34 @@ h1 em { font-family: Georgia, "Yu Mincho", serif; font-weight: 400; color: var(-
 .reader-notice p { margin: 5px 0 0; color: #636963; font-size: 10px; line-height: 1.65; }
 .reader-actions { margin-top: 28px; display: flex; align-items: center; gap: 20px; }
 .reader-actions button { border: 0; background: transparent; color: var(--ink); text-decoration: underline; text-underline-offset: 5px; font-size: 11px; cursor: pointer; }
+.reader-actions button.is-saved { color: #bd3e21; }
+.reader-actions button:disabled { cursor: wait; opacity: .5; }
 .reader-actions a { margin-left: auto; min-width: 220px; padding: 16px 18px; display: flex; justify-content: space-between; background: var(--ink); color: var(--paper); text-decoration: none; font-size: 12px; font-weight: 750; }
 .reader-actions a:hover { background: var(--orange); color: var(--ink); }
+
+.bookmarks-backdrop { position: fixed; z-index: 35; inset: 0; padding: 30px; display: grid; place-items: center; background: rgba(7,10,8,.84); backdrop-filter: blur(10px); }
+.bookmarks-panel { width: min(860px, 100%); max-height: min(790px, calc(100vh - 60px)); overflow-y: auto; position: relative; padding: clamp(36px, 5vw, 64px); border: 1px solid var(--ink); background: var(--paper); color: var(--ink); box-shadow: 12px 12px 0 var(--acid); }
+.bookmarks-panel::before { content: ""; position: absolute; inset: 0 auto 0 0; width: 8px; background: var(--orange); }
+.bookmarks-close { position: absolute; top: 18px; right: 20px; width: 42px; height: 42px; border: 1px solid var(--ink); border-radius: 50%; background: transparent; color: var(--ink); font-size: 24px; line-height: 1; cursor: pointer; }
+.bookmarks-close:hover { background: var(--ink); color: var(--paper); }
+.bookmarks-kicker { color: var(--orange); font-family: var(--font-geist-mono); font-size: 8px; font-weight: 750; letter-spacing: .14em; }
+.bookmarks-heading { margin: 20px 0 28px; padding-bottom: 22px; display: flex; align-items: end; justify-content: space-between; gap: 30px; border-bottom: 1px solid var(--line); }
+.bookmarks-heading h2 { margin: 0; font-family: Georgia, "Yu Mincho", serif; font-size: clamp(38px, 6vw, 58px); font-weight: 400; letter-spacing: -.045em; }
+.bookmarks-heading p { margin: 9px 0 0; color: #656c66; font-size: 10px; }
+.bookmarks-heading > b { font-family: var(--font-geist-mono); font-size: 9px; letter-spacing: .09em; white-space: nowrap; }
+.bookmarks-error { margin: -10px 0 20px; padding: 11px 13px; border-left: 3px solid var(--orange); background: #eee0da; color: #743b2e; font-size: 10px; line-height: 1.6; }
+.bookmarks-list { display: grid; }
+.bookmarks-list article { padding: 22px 0; display: grid; grid-template-columns: 42px 1fr; gap: 18px; border-bottom: 1px solid var(--line); }
+.bookmarks-list article > span { padding-top: 3px; color: var(--orange); font-family: var(--font-geist-mono); font-size: 8px; }
+.bookmarks-list small { color: #6d746e; font-family: var(--font-geist-mono); font-size: 7px; letter-spacing: .07em; text-transform: uppercase; }
+.bookmarks-list h3 { margin: 8px 0 15px; font-family: Georgia, "Yu Mincho", serif; font-size: clamp(20px, 3vw, 29px); font-weight: 400; line-height: 1.3; }
+.bookmarks-list article div div { display: flex; align-items: center; gap: 18px; }
+.bookmarks-list button { padding: 0; border: 0; background: transparent; color: var(--ink); font-size: 10px; text-decoration: underline; text-underline-offset: 4px; cursor: pointer; }
+.bookmarks-list button:last-child { color: #9c3d28; }
+.bookmarks-list button:disabled { cursor: wait; opacity: .5; }
+.bookmarks-empty { min-height: 190px; padding: 30px; border: 1px dashed var(--line); display: grid; place-items: center; align-content: center; gap: 9px; color: #626963; text-align: center; font-size: 11px; }
+.bookmarks-empty b { color: var(--ink); font-family: Georgia, "Yu Mincho", serif; font-size: 24px; font-weight: 400; }
+.bookmarks-empty span { font-size: 10px; }
 
 .account-backdrop { position: fixed; z-index: 30; inset: 0; padding: 30px; display: grid; place-items: center; background: rgba(7,10,8,.82); backdrop-filter: blur(10px); }
 .account-panel { width: min(610px, 100%); max-height: min(760px, calc(100vh - 60px)); overflow-y: auto; position: relative; padding: clamp(38px, 6vw, 66px); border: 1px solid var(--ink); background: var(--paper); color: var(--ink); box-shadow: 12px 12px 0 var(--acid); }
@@ -303,6 +337,7 @@ footer p:last-child { justify-self: end; }
   .brand { font-size: 13px; }
   .brand-mark { width: 30px; height: 30px; }
   .topbar-actions { gap: 13px; }
+  .bookmark-trigger b { display: none; }
   .account-trigger span { display: none; }
   .filter-panel { grid-template-columns: 1fr; gap: 13px; }
   .filter-panel.is-open { max-height: 480px; }
@@ -330,6 +365,8 @@ footer p:last-child { justify-self: end; }
   .news-content h3 { font-size: 29px; }
   .article-source { gap: 25px; }
   .article-actions { gap: 15px; }
+  .article-actions { flex-wrap: wrap; }
+  .article-actions .read-here-button { flex-basis: 100%; }
   .reader-backdrop { padding: 12px; align-items: end; }
   .reader-panel { max-height: calc(100vh - 24px); padding: 52px 24px 30px; box-shadow: 6px 6px 0 var(--acid); }
   .reader-kicker { display: grid; gap: 5px; }
@@ -344,6 +381,10 @@ footer p:last-child { justify-self: end; }
   .reader-meta b { margin-left: 0; width: max-content; }
   .reader-actions { align-items: stretch; flex-direction: column-reverse; }
   .reader-actions a { width: 100%; min-width: 0; margin-left: 0; }
+  .bookmarks-backdrop { padding: 12px; align-items: end; }
+  .bookmarks-panel { max-height: calc(100vh - 24px); padding: 54px 24px 30px; box-shadow: 6px 6px 0 var(--acid); }
+  .bookmarks-heading { align-items: flex-start; flex-direction: column; gap: 12px; }
+  .bookmarks-list article { grid-template-columns: 28px 1fr; gap: 10px; }
   .account-backdrop { padding: 12px; align-items: end; }
   .account-panel { max-height: calc(100vh - 24px); padding: 54px 25px 30px; box-shadow: 6px 6px 0 var(--acid); }
   .account-identity { grid-template-columns: 56px 1fr; gap: 14px; }

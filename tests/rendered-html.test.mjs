@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
+import { sanitizeBookmarkArticle } from "../lib/bookmark-validation.js";
 import { articleCountryForMode, normalizeArticleCountries } from "../lib/news-country.js";
 
 const root = new URL("../", import.meta.url);
@@ -59,4 +60,42 @@ test("single-country mode rejects missing, foreign, and multi-country metadata",
 test("mix mode still accepts an article matching any selected country", () => {
   assert.equal(articleCountryForMode(["japan", "germany"], ["jp", "us"], "mix"), "jp");
   assert.equal(articleCountryForMode(["france"], ["jp", "us"], "mix"), null);
+});
+
+test("protects bookmarks with verified Supabase identity and per-user D1 queries", async () => {
+  const [route, schema, explorer] = await Promise.all([
+    source("app/api/bookmarks/route.ts"),
+    source("db/schema.ts"),
+    source("app/NewsExplorer.tsx"),
+  ]);
+
+  assert.match(route, /supabase\.auth\.getUser\(\)/);
+  assert.match(route, /isSameOriginRequest/);
+  assert.match(route, /eq\(bookmarks\.userId, auth\.user\.id\)/);
+  assert.match(route, /MAX_BOOKMARKS_PER_USER/);
+  assert.match(schema, /primaryKey\(\{ columns: \[table\.userId, table\.articleId\] \}\)/);
+  assert.match(explorer, /auth\.user && \(/);
+  assert.match(explorer, /\/api\/bookmarks/);
+  assert.doesNotMatch(explorer, /localStorage|sessionStorage/);
+});
+
+test("rejects unsafe or incomplete bookmark payloads", () => {
+  const valid = sanitizeBookmarkArticle({
+    id: "article-1",
+    title: "Example",
+    description: "Summary",
+    url: "https://example.com/story",
+    imageUrl: "javascript:alert(1)",
+    source: "Example News",
+    sourceUrl: "https://example.com",
+    publishedAt: "2026-10-14 00:00:00",
+    country: ["jp", "jp"],
+    category: ["top"],
+    language: "japanese",
+  });
+
+  assert.equal(valid?.imageUrl, null);
+  assert.deepEqual(valid?.country, ["jp"]);
+  assert.equal(sanitizeBookmarkArticle({ id: "x", title: "No URL", source: "Source" }), null);
+  assert.equal(sanitizeBookmarkArticle({ id: "x", title: "Bad URL", source: "Source", url: "file:///tmp/a" }), null);
 });

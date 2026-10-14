@@ -42,6 +42,17 @@ type Translation = {
   detectedLanguage: string | null;
 };
 
+type Bookmark = Article & {
+  savedAt: string;
+};
+
+type BookmarkResponse = {
+  bookmarks?: Bookmark[];
+  bookmark?: Bookmark;
+  error?: string;
+  errorCode?: string;
+};
+
 type ErrorState = {
   code: string;
   message: string;
@@ -451,6 +462,11 @@ export function NewsExplorer() {
   const [error, setError] = useState<ErrorState | null>(null);
   const [filterOpen, setFilterOpen] = useState(false);
   const [accountOpen, setAccountOpen] = useState(false);
+  const [bookmarkOpen, setBookmarkOpen] = useState(false);
+  const [bookmarks, setBookmarks] = useState<Bookmark[]>([]);
+  const [bookmarkLoading, setBookmarkLoading] = useState(false);
+  const [bookmarkError, setBookmarkError] = useState<string | null>(null);
+  const [bookmarkMutatingIds, setBookmarkMutatingIds] = useState<string[]>([]);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [readerArticleId, setReaderArticleId] = useState<string | null>(null);
   const [translationEnabled, setTranslationEnabled] = useState(false);
@@ -633,8 +649,14 @@ export function NewsExplorer() {
   const coordinates = exploreMode === "mix"
     ? countryCoordinates.world
     : countryCoordinates[articleCountry] || countryCoordinates.world;
+  const bookmarkedArticleIds = useMemo(
+    () => new Set(bookmarks.map((bookmark) => bookmark.id)),
+    [bookmarks],
+  );
   const readerArticle = readerArticleId
-    ? articles.find((item) => item.id === readerArticleId) || null
+    ? articles.find((item) => item.id === readerArticleId)
+      || bookmarks.find((item) => item.id === readerArticleId)
+      || null
     : null;
   const readerTranslation = readerArticle
     ? translationCache[`${readerArticle.id}:${targetLanguage}`]
@@ -650,6 +672,39 @@ export function NewsExplorer() {
     () => categories.find(([value]) => value === category)?.[1] || "すべて",
     [category],
   );
+
+  useEffect(() => {
+    const controller = new AbortController();
+    const loadBookmarks = async () => {
+      setBookmarks([]);
+      setBookmarkError(null);
+      if (!auth.user) {
+        setBookmarkOpen(false);
+        setBookmarkLoading(false);
+        return;
+      }
+
+      setBookmarkLoading(true);
+      try {
+        const response = await fetch("/api/bookmarks", {
+          headers: { Accept: "application/json" },
+          signal: controller.signal,
+        });
+        const data = (await response.json()) as BookmarkResponse;
+        if (!response.ok) throw new Error(data.error || "ブックマークを読み込めませんでした。");
+        setBookmarks(data.bookmarks || []);
+      } catch (caught) {
+        if (!controller.signal.aborted) {
+          setBookmarkError(caught instanceof Error ? caught.message : "ブックマークを読み込めませんでした。");
+        }
+      } finally {
+        if (!controller.signal.aborted) setBookmarkLoading(false);
+      }
+    };
+
+    void loadBookmarks();
+    return () => controller.abort();
+  }, [auth.user]);
 
   useEffect(() => {
     if (!translationEnabled || !orderedArticles.length) return;
@@ -740,6 +795,20 @@ export function NewsExplorer() {
     };
   }, [accountOpen]);
 
+  useEffect(() => {
+    if (!bookmarkOpen) return;
+    const previousOverflow = document.body.style.overflow;
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setBookmarkOpen(false);
+    };
+    document.body.style.overflow = "hidden";
+    window.addEventListener("keydown", closeOnEscape);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [bookmarkOpen]);
+
   const hasPreviousPage = pageIndex > 0;
   const hasNextPage = Boolean(newsPages[pageIndex + 1] || currentPage?.nextPage);
   const pageNavigation = (position: "top" | "bottom") => (
@@ -808,6 +877,38 @@ export function NewsExplorer() {
     }
   }
 
+  async function toggleBookmark(article: Article) {
+    if (!auth.user || bookmarkMutatingIds.includes(article.id)) return;
+
+    const isSaved = bookmarkedArticleIds.has(article.id);
+    setBookmarkMutatingIds((current) => [...current, article.id]);
+    setBookmarkError(null);
+    try {
+      const response = await fetch(
+        isSaved ? `/api/bookmarks?articleId=${encodeURIComponent(article.id)}` : "/api/bookmarks",
+        isSaved
+          ? { method: "DELETE", headers: { Accept: "application/json" } }
+          : {
+              method: "POST",
+              headers: { "Content-Type": "application/json", Accept: "application/json" },
+              body: JSON.stringify(article),
+            },
+      );
+      const data = (await response.json()) as BookmarkResponse;
+      if (!response.ok) throw new Error(data.error || "ブックマークを更新できませんでした。");
+
+      if (isSaved) {
+        setBookmarks((current) => current.filter((bookmark) => bookmark.id !== article.id));
+      } else if (data.bookmark) {
+        setBookmarks((current) => [data.bookmark!, ...current.filter((bookmark) => bookmark.id !== article.id)]);
+      }
+    } catch (caught) {
+      setBookmarkError(caught instanceof Error ? caught.message : "ブックマークを更新できませんでした。");
+    } finally {
+      setBookmarkMutatingIds((current) => current.filter((id) => id !== article.id));
+    }
+  }
+
   return (
     <main className="site-shell">
       <header className="topbar">
@@ -817,11 +918,29 @@ export function NewsExplorer() {
         </a>
         <div className="live-indicator"><i /> LIVE WORLD FEED</div>
         <div className="topbar-actions">
+          {auth.user && (
+            <button
+              type="button"
+              className="bookmark-trigger"
+              aria-label={`保存済みの記事を開く（${bookmarks.length}件）`}
+              onClick={() => {
+                setAccountOpen(false);
+                setBookmarkOpen(true);
+              }}
+            >
+              <span aria-hidden="true">★</span>
+              <b>保存済み</b>
+              <i>{bookmarks.length}</i>
+            </button>
+          )}
           <button
             type="button"
             className={`account-trigger ${auth.user ? "is-signed-in" : ""}`}
             aria-label={auth.user ? `${auth.displayName}のアカウント` : "ログインまたはアカウント作成"}
-            onClick={() => setAccountOpen(true)}
+            onClick={() => {
+              setBookmarkOpen(false);
+              setAccountOpen(true);
+            }}
           >
             {auth.user ? (
               <><i>{(auth.displayName || "T").slice(0, 1).toUpperCase()}</i><span>{auth.displayName}</span></>
@@ -1046,6 +1165,21 @@ export function NewsExplorer() {
                         <button className="read-here-button" onClick={() => setReaderArticleId(article.id)}>
                           サイト内で概要を読む <span>→</span>
                         </button>
+                        {auth.user && (
+                          <button
+                            type="button"
+                            className={`bookmark-button ${bookmarkedArticleIds.has(article.id) ? "is-saved" : ""}`}
+                            aria-label={bookmarkedArticleIds.has(article.id) ? "ブックマークから削除" : "記事をブックマーク"}
+                            aria-pressed={bookmarkedArticleIds.has(article.id)}
+                            disabled={bookmarkMutatingIds.includes(article.id)}
+                            onClick={() => void toggleBookmark(article)}
+                          >
+                            <span aria-hidden="true">{bookmarkedArticleIds.has(article.id) ? "★" : "☆"}</span>
+                            {bookmarkMutatingIds.includes(article.id)
+                              ? "保存中"
+                              : bookmarkedArticleIds.has(article.id) ? "保存済み" : "保存"}
+                          </button>
+                        )}
                         <button className="share-button" onClick={() => void shareArticle(article)} aria-label="記事を共有">
                           {copiedId === article.id ? "コピー済み" : "共有"} ↗
                         </button>
@@ -1086,6 +1220,17 @@ export function NewsExplorer() {
               <p>この画面では記事全文を複製せず、提供された短い概要だけを表示しています。</p>
             </div>
             <div className="reader-actions">
+              {auth.user && (
+                <button
+                  type="button"
+                  className={bookmarkedArticleIds.has(readerArticle.id) ? "is-saved" : ""}
+                  aria-pressed={bookmarkedArticleIds.has(readerArticle.id)}
+                  disabled={bookmarkMutatingIds.includes(readerArticle.id)}
+                  onClick={() => void toggleBookmark(readerArticle)}
+                >
+                  {bookmarkedArticleIds.has(readerArticle.id) ? "★ 保存済み" : "☆ ブックマーク"}
+                </button>
+              )}
               <button onClick={() => void shareArticle(readerArticle)}>
                 {copiedId === readerArticle.id ? "リンクをコピーしました" : "記事リンクを共有"}
               </button>
@@ -1094,6 +1239,68 @@ export function NewsExplorer() {
               </a>
             </div>
           </article>
+        </div>
+      )}
+
+      {bookmarkOpen && auth.user && (
+        <div className="bookmarks-backdrop" onMouseDown={() => setBookmarkOpen(false)}>
+          <section
+            className="bookmarks-panel"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="bookmarks-title"
+            onMouseDown={(event) => event.stopPropagation()}
+          >
+            <button className="bookmarks-close" onClick={() => setBookmarkOpen(false)} aria-label="ブックマークを閉じる">×</button>
+            <span className="bookmarks-kicker">SAVED STORIES · PRIVATE TO YOUR ACCOUNT</span>
+            <div className="bookmarks-heading">
+              <div>
+                <h2 id="bookmarks-title">ブックマーク</h2>
+                <p>ログイン中のアカウントに保存された記事です。</p>
+              </div>
+              <b>{bookmarks.length} / 200</b>
+            </div>
+
+            {bookmarkError && <p className="bookmarks-error" role="alert">{bookmarkError}</p>}
+            {bookmarkLoading ? (
+              <div className="bookmarks-empty">保存済みの記事を読み込んでいます…</div>
+            ) : bookmarks.length ? (
+              <div className="bookmarks-list">
+                {bookmarks.map((bookmark, index) => (
+                  <article key={bookmark.id}>
+                    <span>{String(index + 1).padStart(2, "0")}</span>
+                    <div>
+                      <small>{bookmark.source} · {formatDate(bookmark.savedAt)}保存</small>
+                      <h3>{bookmark.title}</h3>
+                      <div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setBookmarkOpen(false);
+                            setReaderArticleId(bookmark.id);
+                          }}
+                        >
+                          概要を読む →
+                        </button>
+                        <button
+                          type="button"
+                          disabled={bookmarkMutatingIds.includes(bookmark.id)}
+                          onClick={() => void toggleBookmark(bookmark)}
+                        >
+                          {bookmarkMutatingIds.includes(bookmark.id) ? "削除中…" : "削除"}
+                        </button>
+                      </div>
+                    </div>
+                  </article>
+                ))}
+              </div>
+            ) : (
+              <div className="bookmarks-empty">
+                <b>まだ保存された記事はありません。</b>
+                <span>ニュース一覧の「☆ 保存」から追加できます。</span>
+              </div>
+            )}
+          </section>
         </div>
       )}
 
