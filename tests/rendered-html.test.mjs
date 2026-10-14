@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
+import { articleCountryForMode, normalizeArticleCountries } from "../lib/news-country.js";
 
 const root = new URL("../", import.meta.url);
 
@@ -44,4 +45,18 @@ test("preserves the two distinct exploration modes", async () => {
   assert.match(explorer, /世界ミックス/);
   assert.match(explorer, /scrollToNewsListTop/);
   assert.match(explorer, /記事を翻訳/);
+});
+
+test("single-country mode rejects missing, foreign, and multi-country metadata", () => {
+  assert.deepEqual(normalizeArticleCountries(["Japan", "japan", "unknown"]), ["jp"]);
+  assert.equal(articleCountryForMode(["japan"], ["jp"], "single"), "jp");
+  assert.equal(articleCountryForMode(["japan", "united states"], ["jp"], "single"), null);
+  assert.equal(articleCountryForMode(["united states"], ["jp"], "single"), null);
+  assert.equal(articleCountryForMode([], ["jp"], "single"), null);
+  assert.equal(articleCountryForMode(undefined, ["jp"], "single"), null);
+});
+
+test("mix mode still accepts an article matching any selected country", () => {
+  assert.equal(articleCountryForMode(["japan", "germany"], ["jp", "us"], "mix"), "jp");
+  assert.equal(articleCountryForMode(["france"], ["jp", "us"], "mix"), null);
 });

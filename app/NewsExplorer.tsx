@@ -460,6 +460,9 @@ export function NewsExplorer() {
   const [translationLoading, setTranslationLoading] = useState(false);
   const [translationError, setTranslationError] = useState<string | null>(null);
   const newsListTopRef = useRef<HTMLElement | null>(null);
+  const requestSequenceRef = useRef(0);
+  const newsRequestRef = useRef<AbortController | null>(null);
+  const pageRequestRef = useRef<AbortController | null>(null);
   const currentPage = newsPages[pageIndex];
   const articles = currentPage?.articles || emptyArticles;
   const availableCountries = countriesByRegion[region] || countriesByRegion.world;
@@ -475,7 +478,13 @@ export function NewsExplorer() {
   }, []);
 
   const fetchNews = useCallback(async () => {
+    const requestId = ++requestSequenceRef.current;
+    newsRequestRef.current?.abort();
+    pageRequestRef.current?.abort();
+    const controller = new AbortController();
+    newsRequestRef.current = controller;
     setLoading(true);
+    setPageLoading(false);
     setError(null);
     setPageError(null);
     setReaderArticleId(null);
@@ -489,8 +498,9 @@ export function NewsExplorer() {
       } else {
         query.set("countries", shuffle(availableCountries).slice(0, Math.min(5, availableCountries.length)).join(","));
       }
-      const response = await fetch(`/api/news?${query}`);
+      const response = await fetch(`/api/news?${query}`, { signal: controller.signal });
       const data = (await response.json()) as NewsResponse;
+      if (requestId !== requestSequenceRef.current) return;
       if (!response.ok || !data.articles?.length) {
         throw new ApiRequestError(
           data.error || "条件に合うニュースが見つかりませんでした。",
@@ -507,11 +517,15 @@ export function NewsExplorer() {
       setPickedCountry(data.pickedCountry || null);
       setPickedCountries(data.pickedCountries || (data.pickedCountry ? [data.pickedCountry] : []));
     } catch (caught) {
+      if (controller.signal.aborted || requestId !== requestSequenceRef.current) return;
       setNewsPages([]);
       setPageIndex(0);
       setError(asErrorState(caught, "ニュースの取得に失敗しました。"));
     } finally {
-      setLoading(false);
+      if (requestId === requestSequenceRef.current) {
+        setLoading(false);
+        if (newsRequestRef.current === controller) newsRequestRef.current = null;
+      }
     }
   }, [availableCountries, region, category, language, exploreMode, selectedCountry]);
 
@@ -535,6 +549,10 @@ export function NewsExplorer() {
     const nextPage = newsPages[pageIndex]?.nextPage;
     if (!nextPage || !pickedCountry) return;
 
+    const requestId = requestSequenceRef.current;
+    pageRequestRef.current?.abort();
+    const controller = new AbortController();
+    pageRequestRef.current = controller;
     setPageLoading(true);
     setPageError(null);
     try {
@@ -547,8 +565,9 @@ export function NewsExplorer() {
       });
       if (exploreMode === "mix") query.set("countries", pickedCountries.join(","));
       else query.set("country", pickedCountry);
-      const response = await fetch(`/api/news?${query}`);
+      const response = await fetch(`/api/news?${query}`, { signal: controller.signal });
       const data = (await response.json()) as NewsResponse;
+      if (requestId !== requestSequenceRef.current) return;
       if (!response.ok || !data.articles?.length) {
         throw new ApiRequestError(
           data.error || "同じ国の次のニュースが見つかりませんでした。",
@@ -568,15 +587,24 @@ export function NewsExplorer() {
       setPageIndex((current) => current + 1);
       scrollToNewsListTop();
     } catch (caught) {
+      if (controller.signal.aborted || requestId !== requestSequenceRef.current) return;
       setPageError(asErrorState(caught, "次のニュースを取得できませんでした。"));
     } finally {
-      setPageLoading(false);
+      if (requestId === requestSequenceRef.current) {
+        setPageLoading(false);
+        if (pageRequestRef.current === controller) pageRequestRef.current = null;
+      }
     }
   }, [category, exploreMode, language, newsPages, pageIndex, pageLoading, pickedCountries, pickedCountry, region, scrollToNewsListTop]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => void fetchNews(), 0);
-    return () => window.clearTimeout(timer);
+    return () => {
+      window.clearTimeout(timer);
+      requestSequenceRef.current += 1;
+      newsRequestRef.current?.abort();
+      pageRequestRef.current?.abort();
+    };
   }, [fetchNews]);
 
   const orderedArticles = useMemo(() => {
@@ -866,7 +894,7 @@ export function NewsExplorer() {
           <p className={`mode-help mode-help-${exploreMode}`}>
             <b>{exploreMode === "single" ? "1カ国限定" : "複数国を横断"}</b>
             {exploreMode === "single"
-              ? "選択した1カ国に一致する記事だけを表示します。"
+              ? "選択した1カ国だけに登録された配信元の記事を表示し、複数国向けの記事は除外します。"
               : "選ばれた最大5カ国の記事を、1つの一覧に混ぜて表示します。"}
           </p>
           {exploreMode === "single" && (
@@ -882,7 +910,7 @@ export function NewsExplorer() {
                   <option key={country} value={country}>{countryNames[country] || country.toUpperCase()}</option>
                 ))}
               </select>
-              <small>国を固定するか、選択した地域から偶然の1か国を探せます。</small>
+              <small>配信元の国情報で厳格に絞り込みます。記事数が10件未満になる場合があります。</small>
             </label>
           )}
           <button className="shuffle-button" onClick={() => void fetchNews()} disabled={loading}>
@@ -899,7 +927,7 @@ export function NewsExplorer() {
           <p className="quota-note">
             {exploreMode === "mix"
               ? "1回で最大5か国・10件をミックス"
-              : "選択した1カ国の記事だけを最大10件表示"}
+              : "選択した1カ国だけに属する配信元の記事を最大10件表示"}
           </p>
         </div>
 
