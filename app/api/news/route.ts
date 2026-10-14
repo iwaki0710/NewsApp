@@ -24,6 +24,17 @@ const allowedCategories = new Set([
   "politics", "sports", "entertainment",
 ]);
 const allowedLanguages = new Set(["ja", "en", "es", "fr", "de", "pt", "zh", "ar"]);
+const allowedCountryCodes = new Set(Object.values(regionCountries).flat());
+const countryCodeAliases: Record<string, string> = {
+  "united arab emirates": "ae", uae: "ae", argentina: "ar", australia: "au",
+  brazil: "br", canada: "ca", china: "cn", germany: "de", egypt: "eg",
+  spain: "es", france: "fr", "united kingdom": "gb", uk: "gb",
+  indonesia: "id", india: "in", italy: "it", japan: "jp", kenya: "ke",
+  "south korea": "kr", korea: "kr", mexico: "mx", nigeria: "ng",
+  "new zealand": "nz", "saudi arabia": "sa", sweden: "se",
+  singapore: "sg", "united states": "us", "united states of america": "us",
+  usa: "us", "south africa": "za",
+};
 const newsCache = new TtlCache<NewsPayload>(400);
 const NEWS_CACHE_MS = 10 * 60 * 1_000;
 
@@ -85,6 +96,31 @@ function shuffled<T>(values: T[]) {
   return copy;
 }
 
+function normalizeCountryCodes(values: unknown) {
+  if (!Array.isArray(values)) return [];
+  return values
+    .map((value) => safeText(value).toLowerCase())
+    .map((value) => countryCodeAliases[value] || value)
+    .filter((value, index, all) => allowedCountryCodes.has(value) && all.indexOf(value) === index);
+}
+
+function articleCountryForMode(
+  rawCountries: unknown,
+  pickedCountries: string[],
+  mode: "single" | "mix",
+) {
+  const normalizedCountries = normalizeCountryCodes(rawCountries);
+  const matchedCountry = pickedCountries.find((country) => normalizedCountries.includes(country));
+  if (matchedCountry) return matchedCountry;
+
+  // The upstream country filter remains authoritative when no country metadata
+  // is supplied. Explicitly conflicting metadata is rejected below.
+  if (!normalizedCountries.length && (!Array.isArray(rawCountries) || rawCountries.length === 0)) {
+    return mode === "single" ? pickedCountries[0] : null;
+  }
+  return null;
+}
+
 function jsonError(
   error: string,
   errorCode: string,
@@ -111,7 +147,7 @@ function successResponse(payload: NewsPayload, cacheStatus: "HIT" | "MISS") {
       headers: {
         "Cache-Control": "public, max-age=60, s-maxage=600, stale-while-revalidate=120",
         "CDN-Cache-Control": "public, s-maxage=600, stale-while-revalidate=120",
-        "X-WORLDHOP-Cache": cacheStatus,
+        "X-TERRANDIP-Cache": cacheStatus,
         "X-Content-Type-Options": "nosniff",
       },
     },
@@ -170,6 +206,7 @@ export async function GET(request: NextRequest) {
   }
 
   const cacheKey = JSON.stringify({
+    mode,
     pickedCountries: [...pickedCountries].sort(),
     requestedPage,
     category: allowedCategories.has(category) ? category : "all",
@@ -230,6 +267,9 @@ export async function GET(request: NextRequest) {
         if (seen.has(duplicateKey)) return null;
         seen.add(duplicateKey);
 
+        const articleCountry = articleCountryForMode(item.country, pickedCountries, mode);
+        if (!articleCountry) return null;
+
         return {
           id: safeText(item.article_id, `${pickedCountries.join("-")}-${requestedPage || "first"}-${index}`),
           title,
@@ -239,7 +279,10 @@ export async function GET(request: NextRequest) {
           source: safeText(item.source_name, safeText(item.source_id, "Unknown source")).slice(0, 200),
           sourceUrl: safeHttpUrl(item.source_url),
           publishedAt: safeText(item.pubDate).slice(0, 80) || null,
-          country: Array.isArray(item.country) ? item.country.slice(0, 5).map((value) => safeText(value).slice(0, 80)) : [pickedCountry],
+          // One canonical country keeps the two exploration modes unambiguous:
+          // single-country pages can never be labelled as another country, while
+          // mix pages only show countries that were selected for that mix.
+          country: [articleCountry],
           category: Array.isArray(item.category) ? item.category.slice(0, 5).map((value) => safeText(value).slice(0, 80)) : [],
           language: safeText(item.language).slice(0, 20) || null,
         };

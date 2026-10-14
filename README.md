@@ -1,98 +1,50 @@
-# vinext-starter
+# TERRANDIP
 
-A clean full-stack starter running on
-[vinext](https://github.com/cloudflare/vinext), with optional Cloudflare D1 and
-Drizzle support.
+世界各国のニュースを偶然から発見できる、Sites / Vinext対応のニュースアプリです。記事全文は複製せず、配信元が提供する見出しと短い概要だけを表示します。
 
-## Prerequisites
+## 主な機能
 
-- Node.js `>=22.13.0`
+- 1カ国深掘りと、最大5カ国の世界ミックス
+- 10件単位のページ移動と並べ替え
+- DeepLによる任意言語への翻訳切り替え
+- サイト内の概要表示と配信元リンク
+- Supabase Authによるメール認証コードとGoogleログイン
 
-## Quick Start
+## 必要な環境変数
+
+`.env.example`を参考に、ローカルでは`.env.local`へ設定します。`.env.local`はGitへ追加しません。
+
+- `NEWSDATA_API_KEY`: NewsData.ioのサーバー用キー
+- `DEEPL_API_KEY`: DeepLのサーバー用キー
+- `NEXT_PUBLIC_SUPABASE_URL`: SupabaseプロジェクトURL
+- `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`: Supabase Publishable key
+
+`service_role`キーをブラウザ向け変数へ設定しないでください。
+
+## 開発と確認
+
+Node.js 22.13.0以上を使用します。
 
 ```bash
 npm install
+npm run lint
+npm test
 npm run dev
-npm run build
 ```
 
-This starter does not use `wrangler.jsonc`.
+## 認証設定
 
-## Included Shape
+- Supabaseのメールテンプレートは`{{ .Token }}`を使用して6桁コードを送信します。
+- SupabaseとGoogle OAuthの許可URLには、ローカルURLと公開URLの`/auth/callback`を登録します。
+- 公開時はResendの独自ドメインを確認し、Google OAuthを本番公開状態へ切り替えます。
 
-- edit site code under `app/`
-- `.openai/hosting.json` declares optional Sites D1 and R2 bindings
-- `vite.config.ts` simulates declared bindings for local development
-- `db/schema.ts` starts intentionally empty
-- `examples/d1/` contains an optional D1 example surface
-- `drizzle.config.ts` supports local migration generation when needed
+## 公開基盤
 
-## Workspace Auth Headers
+`.openai/hosting.json`、Vinext、Cloudflare Worker向け設定を保持しています。公開用の環境変数はSites側で管理してください。
 
-OpenAI workspace sites can read the current user's email from
-`oai-authenticated-user-email`.
+## 安全設計
 
-SIWC-authenticated workspace sites may also receive
-`oai-authenticated-user-full-name` when the user's SIWC profile has a non-empty
-`name` claim. The full-name value is percent-encoded UTF-8 and is accompanied by
-`oai-authenticated-user-full-name-encoding: percent-encoded-utf-8`.
-
-Treat the full name as optional and fall back to email when it is absent:
-
-```tsx
-import { headers } from "next/headers";
-
-export default async function Home() {
-  const requestHeaders = await headers();
-  const email = requestHeaders.get("oai-authenticated-user-email");
-  const encodedFullName = requestHeaders.get("oai-authenticated-user-full-name");
-  const fullName =
-    encodedFullName &&
-    requestHeaders.get("oai-authenticated-user-full-name-encoding") ===
-      "percent-encoded-utf-8"
-      ? decodeURIComponent(encodedFullName)
-      : null;
-
-  const displayName = fullName ?? email;
-  // ...
-}
-```
-
-## Optional Dispatch-Owned ChatGPT Sign-In
-
-Import the ready-to-use helpers from `app/chatgpt-auth.ts` when the site needs
-optional or required ChatGPT sign-in:
-
-- Use `getChatGPTUser()` for optional signed-in UI.
-- Use `requireChatGPTUser(returnTo)` for server-rendered pages that should send
-  anonymous visitors through Sign in with ChatGPT.
-- Use `chatGPTSignInPath(returnTo)` and `chatGPTSignOutPath(returnTo)` for
-  browser links or actions.
-- Pass a same-origin relative `returnTo` path for the destination after sign-in
-  or sign-out. The helper validates and safely encodes it.
-- Mark protected pages with `export const dynamic = "force-dynamic"` because
-  they depend on per-request identity headers.
-
-Dispatch owns `/signin-with-chatgpt`, `/signout-with-chatgpt`, `/callback`, the
-OAuth cookies, and identity header injection. Do not implement app routes for
-those reserved paths. Routes that do not import and call the helper remain
-anonymous-compatible.
-
-SIWC establishes identity only; it does not prove workspace membership. Use the
-Sites hosting platform's access policy controls for workspace-wide restrictions,
-or enforce explicit server-side membership or allowlist checks.
-
-Use SIWC for account pages, user-specific dashboards, saved records, and write
-actions tied to the current ChatGPT user. Leave public content anonymous.
-
-## Useful Commands
-
-- `npm run dev`: start local development
-- `npm run build`: verify the vinext build output
-- `npm test`: build the starter and verify its rendered loading skeleton
-- `npm run db:generate`: generate Drizzle migrations after schema changes
-
-## Learn More
-
-- [vinext Documentation](https://github.com/cloudflare/vinext)
-- [Drizzle D1 Guide](https://orm.drizzle.team/docs/get-started/d1-new)
+- ニュース・翻訳APIキーはサーバールートだけで利用します。
+- API入力に上限、許可リスト、タイムアウト、利用回数制限を設定しています。
+- Supabaseの`service_role`キー、パスワード、OAuthトークンをアプリ側へ保存しません。
+- OAuth後の遷移先は同一サイト内の相対パスだけを許可します。

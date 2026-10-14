@@ -15,18 +15,18 @@ export async function generateMetadata(): Promise<Metadata> {
 
   return {
     metadataBase: baseUrl,
-    title: "WORLDHOP — 世界のニュースを、偶然から。",
-    description: "世界のどこかで今起きている出来事へ。ランダムにニュースと出会う、新しい入口。",
+    title: "TERRANDIP — 世界のニュースを、偶然から。",
+    description: "世界のどこかで起きている出来事へ。ランダムにニュースと出会う、新しい入口。",
     icons: { icon: "/favicon.svg", shortcut: "/favicon.svg" },
     openGraph: {
-      title: "WORLDHOP",
+      title: "TERRANDIP",
       description: "世界のニュースを、偶然から。",
       type: "website",
-      images: [{ url: socialImage, width: 1732, height: 904, alt: "WORLDHOP — 世界のニュースを、偶然から。" }],
+      images: [{ url: socialImage, width: 1732, height: 908, alt: "TERRANDIP — 世界のニュースを、偶然から。" }],
     },
     twitter: {
       card: "summary_large_image",
-      title: "WORLDHOP",
+      title: "TERRANDIP",
       description: "世界のニュースを、偶然から。",
       images: [socialImage],
     },

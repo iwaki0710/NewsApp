@@ -1,6 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { AccountPanel } from "./AccountPanel";
+import { useTerrandipAuth } from "./auth-context";
 
 type Article = {
   id: string;
@@ -44,14 +46,6 @@ type ErrorState = {
   code: string;
   message: string;
   retryAfterSeconds?: number;
-};
-
-type AuthState = {
-  user: { displayName: string; email: string } | null;
-  signInPath: string;
-  signOutPath: string;
-  accountCreatedAt: string | null;
-  accountStorageReady: boolean;
 };
 
 class ApiRequestError extends Error {
@@ -376,17 +370,6 @@ function formatDate(value: string | null) {
   }).format(date);
 }
 
-function formatAccountDate(value: string | null) {
-  if (!value) return "初回ログイン時に作成";
-  const date = new Date(value.includes("T") ? value : `${value.replace(" ", "T")}Z`);
-  if (Number.isNaN(date.getTime())) return "登録済み";
-  return new Intl.DateTimeFormat("ja-JP", {
-    year: "numeric",
-    month: "long",
-    day: "numeric",
-  }).format(date);
-}
-
 function articleTimestamp(article: Article) {
   if (!article.publishedAt) return 0;
   const value = article.publishedAt.includes("T")
@@ -396,8 +379,14 @@ function articleTimestamp(article: Article) {
   return Number.isNaN(timestamp) ? 0 : timestamp;
 }
 
-function articleCountryCode(article: Article, fallbackCountry: string | null) {
-  const rawCountry = article.country?.[0]?.toLowerCase() || fallbackCountry?.toLowerCase() || "world";
+function articleCountryCode(
+  article: Article,
+  fallbackCountry: string | null,
+  exploreMode: "single" | "mix",
+) {
+  const rawCountry = exploreMode === "single" && fallbackCountry
+    ? fallbackCountry.toLowerCase()
+    : article.country?.[0]?.toLowerCase() || fallbackCountry?.toLowerCase() || "world";
   return countryCodeAliases[rawCountry] || rawCountry;
 }
 
@@ -444,7 +433,8 @@ function ArticleImage({ article }: { article: Article }) {
   );
 }
 
-export function NewsExplorer({ auth }: { auth: AuthState }) {
+export function NewsExplorer() {
+  const auth = useTerrandipAuth();
   const [exploreMode, setExploreMode] = useState<"single" | "mix">("single");
   const [region, setRegion] = useState("world");
   const [selectedCountry, setSelectedCountry] = useState("random");
@@ -461,7 +451,6 @@ export function NewsExplorer({ auth }: { auth: AuthState }) {
   const [error, setError] = useState<ErrorState | null>(null);
   const [filterOpen, setFilterOpen] = useState(false);
   const [accountOpen, setAccountOpen] = useState(false);
-  const [authLocalNotice, setAuthLocalNotice] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [readerArticleId, setReaderArticleId] = useState<string | null>(null);
   const [translationEnabled, setTranslationEnabled] = useState(false);
@@ -470,9 +459,20 @@ export function NewsExplorer({ auth }: { auth: AuthState }) {
   const translationCacheRef = useRef<Record<string, Translation>>({});
   const [translationLoading, setTranslationLoading] = useState(false);
   const [translationError, setTranslationError] = useState<string | null>(null);
+  const newsListTopRef = useRef<HTMLElement | null>(null);
   const currentPage = newsPages[pageIndex];
   const articles = currentPage?.articles || emptyArticles;
   const availableCountries = countriesByRegion[region] || countriesByRegion.world;
+
+  const scrollToNewsListTop = useCallback(() => {
+    window.requestAnimationFrame(() => {
+      const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      newsListTopRef.current?.scrollIntoView({
+        behavior: prefersReducedMotion ? "auto" : "smooth",
+        block: "start",
+      });
+    });
+  }, []);
 
   const fetchNews = useCallback(async () => {
     setLoading(true);
@@ -520,7 +520,8 @@ export function NewsExplorer({ auth }: { auth: AuthState }) {
     setReaderArticleId(null);
     setPageError(null);
     setPageIndex((current) => current - 1);
-  }, [pageIndex, pageLoading]);
+    scrollToNewsListTop();
+  }, [pageIndex, pageLoading, scrollToNewsListTop]);
 
   const loadNextPage = useCallback(async () => {
     if (pageLoading) return;
@@ -528,6 +529,7 @@ export function NewsExplorer({ auth }: { auth: AuthState }) {
       setReaderArticleId(null);
       setPageError(null);
       setPageIndex((current) => current + 1);
+      scrollToNewsListTop();
       return;
     }
     const nextPage = newsPages[pageIndex]?.nextPage;
@@ -564,12 +566,13 @@ export function NewsExplorer({ auth }: { auth: AuthState }) {
       ]);
       setReaderArticleId(null);
       setPageIndex((current) => current + 1);
+      scrollToNewsListTop();
     } catch (caught) {
       setPageError(asErrorState(caught, "次のニュースを取得できませんでした。"));
     } finally {
       setPageLoading(false);
     }
-  }, [category, exploreMode, language, newsPages, pageIndex, pageLoading, pickedCountries, pickedCountry, region]);
+  }, [category, exploreMode, language, newsPages, pageIndex, pageLoading, pickedCountries, pickedCountry, region, scrollToNewsListTop]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => void fetchNews(), 0);
@@ -598,7 +601,7 @@ export function NewsExplorer({ auth }: { auth: AuthState }) {
     : countryNames[articleCountry] || articleCountry.toUpperCase();
   const feedLocationLabel = exploreMode === "mix"
     ? `${pickedCountries.length}か国ミックス`
-    : locationLabel;
+    : `${locationLabel}限定`;
   const coordinates = exploreMode === "mix"
     ? countryCoordinates.world
     : countryCoordinates[articleCountry] || countryCoordinates.world;
@@ -717,24 +720,48 @@ export function NewsExplorer({ auth }: { auth: AuthState }) {
       aria-label={exploreMode === "mix" ? "選ばれた国々のニュースを移動" : "同じ国のニュースを移動"}
     >
       <span>{feedLocationLabel}の記事</span>
-      <div>
-        <button
-          type="button"
-          onClick={loadPreviousPage}
-          disabled={!hasPreviousPage || pageLoading}
-          aria-label={exploreMode === "mix" ? "選ばれた国々の前の10件へ" : "同じ国の前の10件へ"}
-        >
-          ←
-        </button>
-        <b>{pageLoading ? "読み込み中" : `PAGE ${String(pageIndex + 1).padStart(2, "0")}`}</b>
-        <button
-          type="button"
-          onClick={() => void loadNextPage()}
-          disabled={!hasNextPage || pageLoading}
-          aria-label={exploreMode === "mix" ? "選ばれた国々の次の10件へ" : "同じ国の次の10件へ"}
-        >
-          →
-        </button>
+      <div className="page-navigation-actions">
+        {position === "top" && (
+          <div className="page-translation" role="group" aria-label="記事の翻訳設定">
+            <span>記事を翻訳</span>
+            <button
+              type="button"
+              className={`switch ${translationEnabled ? "is-on" : ""}`}
+              role="switch"
+              aria-checked={translationEnabled}
+              onClick={() => setTranslationEnabled((enabled) => !enabled)}
+            >
+              <i /><b>{translationEnabled ? "ON" : "OFF"}</b>
+            </button>
+            <select
+              aria-label="翻訳先の言語"
+              value={targetLanguage}
+              disabled={!translationEnabled}
+              onChange={(event) => setTargetLanguage(event.target.value)}
+            >
+              {translationLanguages.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+            </select>
+          </div>
+        )}
+        <div className="page-controls">
+          <button
+            type="button"
+            onClick={loadPreviousPage}
+            disabled={!hasPreviousPage || pageLoading}
+            aria-label={exploreMode === "mix" ? "選ばれた国々の前の10件へ" : "同じ国の前の10件へ"}
+          >
+            ←
+          </button>
+          <b>{pageLoading ? "読み込み中" : `PAGE ${String(pageIndex + 1).padStart(2, "0")}`}</b>
+          <button
+            type="button"
+            onClick={() => void loadNextPage()}
+            disabled={!hasNextPage || pageLoading}
+            aria-label={exploreMode === "mix" ? "選ばれた国々の次の10件へ" : "同じ国の次の10件へ"}
+          >
+            →
+          </button>
+        </div>
       </div>
     </div>
   );
@@ -753,33 +780,23 @@ export function NewsExplorer({ auth }: { auth: AuthState }) {
     }
   }
 
-  function continueToSignIn(event: React.MouseEvent<HTMLAnchorElement>) {
-    if (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1") {
-      event.preventDefault();
-      setAuthLocalNotice(true);
-    }
-  }
-
   return (
     <main className="site-shell">
       <header className="topbar">
-        <a className="brand" href="#top" aria-label="WORLDHOP ホーム">
-          <span className="brand-mark">W</span>
-          <span>WORLDHOP</span>
+        <a className="brand" href="#top" aria-label="TERRANDIP ホーム">
+          <span className="brand-mark">T</span>
+          <span>TERRANDIP</span>
         </a>
         <div className="live-indicator"><i /> LIVE WORLD FEED</div>
         <div className="topbar-actions">
           <button
             type="button"
             className={`account-trigger ${auth.user ? "is-signed-in" : ""}`}
-            aria-label={auth.user ? `${auth.user.displayName}のアカウント` : "ログインまたはアカウント作成"}
-            onClick={() => {
-              setAuthLocalNotice(false);
-              setAccountOpen(true);
-            }}
+            aria-label={auth.user ? `${auth.displayName}のアカウント` : "ログインまたはアカウント作成"}
+            onClick={() => setAccountOpen(true)}
           >
             {auth.user ? (
-              <><i>{auth.user.displayName.slice(0, 1).toUpperCase()}</i><span>{auth.user.displayName}</span></>
+              <><i>{(auth.displayName || "T").slice(0, 1).toUpperCase()}</i><span>{auth.displayName}</span></>
             ) : (
               <><i>+</i><span>ログイン / 登録</span></>
             )}
@@ -818,28 +835,6 @@ export function NewsExplorer({ auth }: { auth: AuthState }) {
             {languages.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
           </select>
         </label>
-        <div className="translation-filter">
-          <span>記事を翻訳</span>
-          <div>
-            <button
-              type="button"
-              className={`switch ${translationEnabled ? "is-on" : ""}`}
-              role="switch"
-              aria-checked={translationEnabled}
-              onClick={() => setTranslationEnabled((enabled) => !enabled)}
-            >
-              <i /><b>{translationEnabled ? "ON" : "OFF"}</b>
-            </button>
-            <select
-              aria-label="翻訳先の言語"
-              value={targetLanguage}
-              disabled={!translationEnabled}
-              onChange={(event) => setTargetLanguage(event.target.value)}
-            >
-              {translationLanguages.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
-            </select>
-          </div>
-        </div>
       </section>
 
       <section className="hero" id="top">
@@ -848,7 +843,7 @@ export function NewsExplorer({ auth }: { auth: AuthState }) {
           <h1>世界のニュースを、<br /><em>偶然</em>から。</h1>
           <p className="hero-lead">
             アルゴリズムの外へ出よう。ボタンを押すたび、<br className="desktop-only" />
-            世界のどこかで今起きている出来事へ。
+            世界のどこかで起きている出来事へ。
           </p>
           <div className="mode-picker" aria-label="ニュースの探索方法">
             <button
@@ -857,7 +852,7 @@ export function NewsExplorer({ auth }: { auth: AuthState }) {
               aria-pressed={exploreMode === "single"}
               onClick={() => setExploreMode("single")}
             >
-              <span>01</span> 1か国を深掘り
+              <span>01</span> 1カ国深掘り
             </button>
             <button
               type="button"
@@ -868,6 +863,12 @@ export function NewsExplorer({ auth }: { auth: AuthState }) {
               <span>02</span> 世界ミックス
             </button>
           </div>
+          <p className={`mode-help mode-help-${exploreMode}`}>
+            <b>{exploreMode === "single" ? "1カ国限定" : "複数国を横断"}</b>
+            {exploreMode === "single"
+              ? "選択した1カ国に一致する記事だけを表示します。"
+              : "選ばれた最大5カ国の記事を、1つの一覧に混ぜて表示します。"}
+          </p>
           {exploreMode === "single" && (
             <label className="country-picker">
               <span>国を選ぶ</span>
@@ -897,8 +898,8 @@ export function NewsExplorer({ auth }: { auth: AuthState }) {
           </button>
           <p className="quota-note">
             {exploreMode === "mix"
-              ? "1回のAPI取得で最大5か国・10件をミックス"
-              : "1回のシャッフルで1か国から最大10件を取得"}
+              ? "1回で最大5か国・10件をミックス"
+              : "選択した1カ国の記事だけを最大10件表示"}
           </p>
         </div>
 
@@ -911,7 +912,7 @@ export function NewsExplorer({ auth }: { auth: AuthState }) {
         </div>
       </section>
 
-      <section className="feed-section" aria-live="polite">
+      <section ref={newsListTopRef} className="feed-section" aria-live="polite">
         <div className="feed-heading">
           <div>
             <span className="section-number">01</span>
@@ -977,7 +978,7 @@ export function NewsExplorer({ auth }: { auth: AuthState }) {
             )}
             <div className="news-grid">
               {orderedArticles.map((article, articleIndex) => {
-                const countryCode = articleCountryCode(article, pickedCountry);
+                const countryCode = articleCountryCode(article, pickedCountry, exploreMode);
                 const cardLocationLabel = countryNames[countryCode] || countryCode.toUpperCase();
                 const translationKey = `${article.id}:${targetLanguage}`;
                 const translated = translationCache[translationKey];
@@ -1041,7 +1042,7 @@ export function NewsExplorer({ auth }: { auth: AuthState }) {
             onMouseDown={(event) => event.stopPropagation()}
           >
             <button className="reader-close" onClick={() => setReaderArticleId(null)} aria-label="詳細を閉じる">×</button>
-            <div className="reader-kicker"><span>WORLDHOP READER</span><span>SHORT SUMMARY</span></div>
+            <div className="reader-kicker"><span>TERRANDIP READER</span><span>SHORT SUMMARY</span></div>
             <h3 id="reader-title">{readerTitle}</h3>
             <div className="reader-meta">
               <div><span>SOURCE</span><strong>{readerArticle.source}</strong></div>
@@ -1054,7 +1055,7 @@ export function NewsExplorer({ auth }: { auth: AuthState }) {
             </div>
             <div className="reader-notice">
               <b>著作権に配慮した表示</b>
-              <p>この画面では記事全文を複製せず、APIから提供された短い概要だけを表示しています。</p>
+              <p>この画面では記事全文を複製せず、提供された短い概要だけを表示しています。</p>
             </div>
             <div className="reader-actions">
               <button onClick={() => void shareArticle(readerArticle)}>
@@ -1068,76 +1069,21 @@ export function NewsExplorer({ auth }: { auth: AuthState }) {
         </div>
       )}
 
-      {accountOpen && (
-        <div className="account-backdrop" onMouseDown={() => setAccountOpen(false)}>
-          <section
-            className="account-panel"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="account-title"
-            onMouseDown={(event) => event.stopPropagation()}
-          >
-            <button className="account-close" onClick={() => setAccountOpen(false)} aria-label="アカウント画面を閉じる">×</button>
-            <span className="account-kicker">WORLDHOP ACCOUNT</span>
-            {auth.user ? (
-              <>
-                <div className="account-identity">
-                  <i>{auth.user.displayName.slice(0, 1).toUpperCase()}</i>
-                  <div>
-                    <span>ログイン中</span>
-                    <h2 id="account-title">{auth.user.displayName}</h2>
-                    <p>{auth.user.email}</p>
-                  </div>
-                </div>
-                <div className="account-security-grid">
-                  <div><span>ACCOUNT CREATED</span><b>{formatAccountDate(auth.accountCreatedAt)}</b></div>
-                  <div><span>SECURITY</span><b>{auth.accountStorageReady ? "保護されています" : "プロフィール保存準備中"}</b></div>
-                </div>
-                <div className="account-safe-note">
-                  <b>パスワードを保存しない設計</b>
-                  <p>ログイン確認はChatGPTが担当します。WORLDHOPにはパスワード、認証トークン、ログイン用Cookieを保存しません。</p>
-                </div>
-                <a className="account-signout" href={auth.signOutPath}>ログアウト <span>→</span></a>
-              </>
-            ) : (
-              <>
-                <h2 id="account-title">アカウント作成<br />またはログイン</h2>
-                <p className="account-lead">
-                  ChatGPTの安全なログイン画面を利用します。初回ログイン時にWORLDHOPアカウントが自動で作成されます。
-                </p>
-                <div className="account-benefits">
-                  <div><span>01</span><b>新しいパスワードは不要</b></div>
-                  <div><span>02</span><b>認証情報をサイトに保存しない</b></div>
-                  <div><span>03</span><b>いつでも安全にログアウト</b></div>
-                </div>
-                {authLocalNotice && (
-                  <p className="account-local-notice" role="status">
-                    ログインは公開された保護環境で利用できます。ローカル画面ではニュース機能をそのまま確認できます。
-                  </p>
-                )}
-                <a className="account-primary" href={auth.signInPath} onClick={continueToSignIn}>
-                  ChatGPTでログイン / 登録 <span>→</span>
-                </a>
-                <small>続行すると、ChatGPT側で本人確認が行われます。</small>
-              </>
-            )}
-          </section>
-        </div>
-      )}
+      {accountOpen && <AccountPanel onClose={() => setAccountOpen(false)} />}
 
       <section className="manifesto">
         <span className="section-number">02</span>
         <p>いつもの視点から、<br /><em>少しだけ遠くへ。</em></p>
         <div className="manifesto-note">
-          <b>WORLDHOP</b>
+          <b>TERRANDIP</b>
           <span>偏りのない世界はない。<br />だからこそ、偶然の入口を。</span>
         </div>
       </section>
 
       <footer>
-        <a className="brand footer-brand" href="#top"><span className="brand-mark">W</span><span>WORLDHOP</span></a>
+        <a className="brand footer-brand" href="#top"><span className="brand-mark">T</span><span>TERRANDIP</span></a>
         <p>NEWS: NEWSDATA.IO · TRANSLATION: DEEPL</p>
-        <p>© 2026 WORLDHOP</p>
+        <p>© 2026 TERRANDIP</p>
       </footer>
     </main>
   );
