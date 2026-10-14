@@ -63,9 +63,10 @@ test("mix mode still accepts an article matching any selected country", () => {
 });
 
 test("protects bookmarks with verified Supabase identity and per-user D1 queries", async () => {
-  const [route, schema, explorer] = await Promise.all([
+  const [route, schema, database, explorer] = await Promise.all([
     source("app/api/bookmarks/route.ts"),
     source("db/schema.ts"),
+    source("db/index.ts"),
     source("app/NewsExplorer.tsx"),
   ]);
 
@@ -74,8 +75,12 @@ test("protects bookmarks with verified Supabase identity and per-user D1 queries
   assert.match(route, /eq\(bookmarks\.userId, auth\.user\.id\)/);
   assert.match(route, /MAX_BOOKMARKS_PER_USER/);
   assert.match(schema, /primaryKey\(\{ columns: \[table\.userId, table\.articleId\] \}\)/);
+  assert.match(route, /await ensureBookmarkSchema\(\)/);
+  assert.match(database, /CREATE TABLE IF NOT EXISTS bookmarks/);
+  assert.match(database, /CREATE INDEX IF NOT EXISTS bookmarks_user_created_at_idx/);
   assert.match(explorer, /auth\.user && \(/);
   assert.match(explorer, /\/api\/bookmarks/);
+  assert.match(explorer, /bookmark-toast/);
   assert.doesNotMatch(explorer, /localStorage|sessionStorage/);
 });
 

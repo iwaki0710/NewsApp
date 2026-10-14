@@ -954,6 +954,14 @@ export function NewsExplorer() {
         </div>
       </header>
 
+      {bookmarkError && !bookmarkOpen && (
+        <p className="bookmark-toast" role="alert">
+          <span>保存できませんでした</span>
+          {bookmarkError}
+          <button type="button" onClick={() => setBookmarkError(null)} aria-label="通知を閉じる">×</button>
+        </p>
+      )}
+
       <section className={`filter-panel ${filterOpen ? "is-open" : ""}`} aria-hidden={!filterOpen}>
         <label>
           <span>地域</span>

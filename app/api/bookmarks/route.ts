@@ -1,6 +1,6 @@
 import { and, count, desc, eq } from "drizzle-orm";
 import { NextRequest, NextResponse } from "next/server";
-import { getDb } from "../../../db";
+import { ensureBookmarkSchema, getDb } from "../../../db";
 import { bookmarks } from "../../../db/schema";
 import { sanitizeBookmarkArticle } from "../../../lib/bookmark-validation.js";
 import { isSameOriginRequest, takeRateLimit } from "../../../lib/server-protection";
@@ -87,6 +87,7 @@ export async function GET(request: NextRequest) {
   if (auth.response) return auth.response;
 
   try {
+    await ensureBookmarkSchema();
     const rows = await getDb()
       .select()
       .from(bookmarks)
@@ -127,6 +128,7 @@ export async function POST(request: NextRequest) {
   }
 
   try {
+    await ensureBookmarkSchema();
     const db = getDb();
     const existing = await db
       .select({ articleId: bookmarks.articleId })
@@ -199,6 +201,7 @@ export async function DELETE(request: NextRequest) {
   }
 
   try {
+    await ensureBookmarkSchema();
     await getDb()
       .delete(bookmarks)
       .where(and(eq(bookmarks.userId, auth.user.id), eq(bookmarks.articleId, articleId)));
